@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Tab</title>
+    <style>
+        :root {
+            --bg-primary: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            --search-bg: rgba(30, 30, 30, 0.85);
+            --search-inner-bg: rgba(30, 30, 30, 0.95);
+            --text-primary: #e6e6e6;
+            --text-secondary: #aaaaaa;
+            --text-placeholder: #777777;
+            --accent-color: #4d7eff;
+            --suggestion-hover: rgba(77, 126, 255, 0.15);
+            --suggestion-selected: rgba(77, 126, 255, 0.25);
+            --shadow-elevation: 0 20px 60px rgba(0, 0, 0, 0.3), 0 8px 32px rgba(0, 0, 0, 0.15);
+            --shadow-hover: 0 30px 80px rgba(0, 0, 0, 0.4), 0 12px 40px rgba(0, 0, 0, 0.2);
+            --shadow-focus: 0 40px 100px rgba(0, 0, 0, 0.5), 0 16px 50px rgba(0, 0, 0, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg-primary);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-group label {
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-group input, .control-group select {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: white;
+            font-size: 12px;
+            width: 180px;
+        }
+
+        .control-group input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .search-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            padding: 0 20px;
+        }
+
+        .search-wrapper {
+            position: relative;
+            background: var(--search-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 4px;
+            box-shadow: var(--shadow-elevation);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transform: translateY(0);
+        }
+
+        .search-wrapper:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .search-wrapper.focused {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-focus);
+        }
+
+        .search-input-container {
+            display: flex;
+            align-items: center;
+            background: var(--search-inner-bg);
+            border-radius: 20px;
+            padding: 18px 24px;
+            gap: 16px;
+        }
+
+        .search-icon {
+            width: 20px;
+            height: 20px;
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+            color: var(--text-secondary);
+        }
+
+        .search-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 18px;
+            font-weight: 400;
+            color: var(--text-primary);
+            background: transparent;
+            caret-color: var(--accent-color);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-placeholder);
+            font-weight: 300;
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--search-bg);
+            backdrop-filter: blur(20px);
+            border-radius: 0 0 20px 20px;
+            margin-top: -20px;
+            padding-top: 20px;
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-top: none;
+        }
+
+        .suggestions.show {
+            max-height: 400px;
+            padding-bottom: 12px;
+        }
+
+        .suggestion-item {
+            padding: 14px 24px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            color: var(--text-secondary);
+            border-radius: 8px;
+            margin: 0 8px;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background: var(--suggestion-hover);
+            color: var(--text-primary);
+            transform: translateX(4px);
+        }
+
+        .suggestion-item.selected {
+            background: var(--suggestion-selected);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .suggestion-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+
+        .suggestion-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .floating-elements {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .floating-circle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float 20s infinite linear;
+        }
+
+        .floating-circle:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            top: 20%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .floating-circle:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            top: 60%;
+            right: 15%;
+            animation-delay: -7s;
+        }
+
+        .floating-circle:nth-child(3) {
+            width: 40px;
+            height: 40px;
+            top: 80%;
+            left: 20%;
+            animation-delay: -14s;
+        }
+
+        .floating-circle:nth-child(4) {
+            width: 100px;
+            height: 100px;
+            top: 30%;
+            right: 5%;
+            animation-delay: -3s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px) rotate(0deg);
+                opacity: 0.7;
+            }
+            50% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-1000px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .toggle-controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            cursor: pointer;
+            font-size: 12px;
+            z-index: 1001;
+        }
+
+        .controls.hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .search-container {
+                max-width: 90%;
+            }
+            
+            .search-input {
+                font-size: 16px;
+            }
+            
+            .search-input-container {
+                padding: 16px 20px;
+            }
+
+            .controls {
+                top: 10px;
+                right: 10px;
+                padding: 12px;
+                width: 200px;
+            }
+
+            .toggle-controls {
+                top: 10px;
+                left: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Want Quicker Access to Controls? Uncomment the line below!-->
+    <!--<div class="toggle-controls" onclick="toggleControls()">⚙️ Customize</div>-->
+    
+    <div class="controls hidden" id="controls">
+        <div class="control-group clean">
+            <button onclick="toggleControls()">Close Controls</button>
+        </div>
+        <div class="control-group">
+            <label>Background</label>
+            <select id="backgroundSelect" onchange="changeBackground()">
+                <option value="gradient1">Purple Gradient</option>
+                <option value="gradient2">Ocean Blue</option>
+                <option value="gradient3">Sunset</option>
+                <option value="gradient4">Forest</option>
+                <option value="solid">Solid Color</option>
+                <option value="custom">Custom Gradient</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Search Bar Opacity</label>
+            <input type="range" id="opacitySlider" min="0.7" max="1" step="0.05" value="0.95" oninput="updateOpacity()">
+        </div>
+        <div class="control-group">
+            <label>Search Bar Color</label>
+            <input type="color" id="colorPicker" value="#1e1e1e" onchange="updateColor()">
+        </div>
+        <div class="control-group">
+            <label>Accent Color</label>
+            <input type="color" id="accentPicker" value="#4d7eff" onchange="updateAccent()">
+        </div>
+        <div class="control-group">
+            <label>Floating Elements</label>
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="floatingElementsToggle" onchange="toggleFloatingElements()" checked>
+            </div>
+        </div>
+        <p>
+            By Vaed Dhruv | <a href="https://github.com/Vaedz7/" target="_blank" style="color: var(--accent-color); text-decoration: none;">GitHub</a>
+        </p>
+    </div>
+
+    <div class="floating-elements">
+        <div class="floating-circle"></div>
+        <div class="floating-circle"></div>
+        <div class="floating-circle"></div>
+        <div class="floating-circle"></div>
+    </div>
+
+    <div class="search-container">
+        <div class="search-wrapper" id="searchWrapper">
+            <div class="search-input-container">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="M21 21l-4.5-4.5"></path>
+                </svg>
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    id="searchInput"
+                    placeholder="Search the web or enter URL"
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+            </div>
+            <div class="suggestions" id="suggestions"></div>
+        </div>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const searchWrapper = document.getElementById('searchWrapper');
+        const suggestions = document.getElementById('suggestions');
+
+        const suggestionCache = new Map();
+
+        // Add any of your other favorites to the list below!
+        const popularSuggestions = [
+            { text: 'YouTube', icon: '🎥', url: 'https://youtube.com' },
+            { text: 'Gmail', icon: '📧', url: 'https://gmail.com' },
+            { text: 'GitHub', icon: '🐙', url: 'https://github.com' },
+            { text: 'Customize Page', icon: '⚙️', isCustomize: true }
+        ];
+
+        const commonSearches = [
+            'weather', 'news', 'translate', 'calculator', 'timer', 'calendar',
+            'how to', 'what is', 'where is', 'when is', 'why does', 'how does',
+            'best restaurants near me', 'movie times', 'gas prices', 'stock market',
+            'bitcoin price', 'google maps', 'amazon', 'netflix', 'spotify',
+            'facebook', 'instagram', 'linkedin', 'tiktok', 'discord',
+            'python tutorial', 'javascript', 'react', 'css', 'html',
+            'machine learning', 'ai', 'chatgpt', 'openai', 'claude',
+            'recipes', 'workout', 'meditation', 'yoga', 'sleep',
+            'covid', 'vaccine', 'health', 'symptoms', 'doctor near me',
+            'flight tracker', 'hotel booking', 'car rental', 'uber',
+            'password generator', 'qr code generator', 'color picker',
+            'unit converter', 'timezone converter', 'currency converter'
+        ];
+
+        let currentSuggestions = [];
+        let selectedIndex = -1;
+        let isNavigating = false;
+
+        window.addEventListener('load', () => {
+            searchInput.focus();
+            loadSavedSettings();
+        });
+
+        searchInput.addEventListener('focus', () => {
+            searchWrapper.classList.add('focused');
+            if (searchInput.value.trim() === '') {
+                showPopularSuggestions();
+            } else {
+                showInstantSuggestions(searchInput.value.trim());
+            }
+        });
+
+        searchInput.addEventListener('blur', () => {
+            if (!isNavigating) {
+                setTimeout(() => {
+                    searchWrapper.classList.remove('focused');
+                    hideSuggestions();
+                }, 150);
+            }
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            selectedIndex = -1;
+            
+            if (query === '') {
+                showPopularSuggestions();
+            } else {
+                showInstantSuggestions(query);
+            }
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            const suggestionItems = document.querySelectorAll('.suggestion-item');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, suggestionItems.length - 1);
+                updateSelection();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, -1);
+                updateSelection();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectedIndex >= 0 && selectedIndex < currentSuggestions.length) {
+                    const selected = currentSuggestions[selectedIndex];
+                    handleSuggestionClick(selected.url || '', selected.text, selected.isSearch || false, selected.query || '');
+                } else {
+                    handleSearch(searchInput.value);
+                }
+            } else if (e.key === 'Escape') {
+                hideSuggestions();
+                searchInput.blur();
+                selectedIndex = -1;
+            }
+        });
+
+        function updateSelection() {
+            const suggestionItems = document.querySelectorAll('.suggestion-item');
+            suggestionItems.forEach((item, index) => {
+                item.classList.toggle('selected', index === selectedIndex);
+            });
+
+            if (selectedIndex >= 0 && selectedIndex < currentSuggestions.length) {
+                const selected = currentSuggestions[selectedIndex];
+                if (selected.isSearch && selected.query) {
+                    if (!selected.text.includes(' on ')) {
+                        searchInput.value = selected.query;
+                    }
+                }
+            }
+
+            if (selectedIndex >= 0 && suggestionItems[selectedIndex]) {
+                suggestionItems[selectedIndex].scrollIntoView({
+                    block: 'nearest',
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        function showPopularSuggestions() {
+            currentSuggestions = popularSuggestions;
+            renderSuggestions(popularSuggestions);
+            suggestions.classList.add('show');
+            selectedIndex = -1;
+        }
+
+        async function showInstantSuggestions(query) {
+            const matchingSuggestions = [];
+            
+            matchingSuggestions.push({
+                text: `Search for "${query}"`,
+                icon: '🔍',
+                isSearch: true,
+                query: query
+            });
+            
+            try {
+                const googleSuggestions = await fetchGoogleSuggestions(query);
+                
+                googleSuggestions.slice(0, 5).forEach(suggestion => {
+                    if (suggestion.toLowerCase() !== query.toLowerCase()) {
+                        matchingSuggestions.push({
+                            text: suggestion,
+                            icon: '🔍',
+                            isSearch: true,
+                            query: suggestion,
+                            isGoogleSuggestion: true
+                        });
+                    }
+                });
+            } catch (error) {
+                console.log('Google suggestions unavailable, using fallback: ', error);
+                
+                const matches = commonSearches
+                    .filter(search => search.toLowerCase().includes(query.toLowerCase()))
+                    .slice(0, 3)
+                    .map(match => ({
+                        text: match,
+                        icon: '🔍',
+                        isSearch: true,
+                        query: match
+                    }));
+                
+                matchingSuggestions.push(...matches);
+            }
+            
+            matchingSuggestions.push(
+                { text: `"${query}" on YouTube`, icon: '🎥', url: `https://youtube.com/results?search_query=${encodeURIComponent(query)}` },
+                { text: `"${query}" on Reddit`, icon: '🔴', url: `https://reddit.com/search?q=${encodeURIComponent(query)}` },
+                { text: `"${query}" on GitHub`, icon: '🐙', url: `https://github.com/search?q=${encodeURIComponent(query)}` }
+            );
+            
+            currentSuggestions = matchingSuggestions;
+            renderSuggestions(matchingSuggestions);
+            suggestions.classList.add('show');
+            selectedIndex = -1;
+        }
+
+        async function fetchGoogleSuggestions(query) {
+            if (suggestionCache.has(query)) {
+                return suggestionCache.get(query);
+            }
+            
+            try {
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`http://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                
+                const data = await response.json();
+
+                let suggestions = [];
+                try {
+                    const parsedData = JSON.parse(data.contents);
+                    suggestions = parsedData[1] || [];
+                } catch (parseError) {
+                    const content = data.contents;
+                    const matches = content.match(/\["([^"]+)"/g);
+                    if (matches) {
+                        suggestions = matches.slice(1, 6).map(match => match.replace(/\["/, '').replace(/"$/, ''));
+                    }
+                }
+
+                suggestionCache.set(query, suggestions);
+                
+                if (suggestionCache.size > 100) {
+                    const firstKey = suggestionCache.keys().next().value;
+                    suggestionCache.delete(firstKey);
+                }
+                
+                return suggestions;
+            } catch (error) {
+                console.warn('Failed to fetch Google suggestions:', error);
+                return [];
+            }
+        }
+
+        function renderSuggestions(suggestionList) {
+            suggestions.innerHTML = suggestionList
+                .map((suggestion, index) => `
+                    <div class="suggestion-item" 
+                         onmouseenter="handleMouseEnter(${index})"
+                         onmousedown="handleSuggestionClick('${suggestion.url || ''}', '${suggestion.text}', ${suggestion.isSearch || false}, '${suggestion.query || ''}', ${suggestion.isCustomize || false})">
+                        <span class="suggestion-icon">${suggestion.icon}</span>
+                        <span class="suggestion-text">${suggestion.text}</span>
+                    </div>
+                `).join('');
+        }
+
+        function handleMouseEnter(index) {
+            selectedIndex = index;
+            updateSelection();
+        }
+
+        function hideSuggestions() {
+            suggestions.classList.remove('show');
+            selectedIndex = -1;
+        }
+
+        function handleSuggestionClick(url, text, isSearch, query, isCustomize = false) {
+            isNavigating = true;
+            
+            if (isCustomize) {
+                toggleControls();
+            } else if (isSearch) {
+                handleSearch(query || searchInput.value);
+            } else if (url) {
+                window.location.href = url;
+            }
+            
+            setTimeout(() => {
+                isNavigating = false;
+            }, 100);
+        }
+
+        function handleSearch(query) {
+            if (query.trim() === '') return;
+            
+            if (isValidURL(query)) {
+                window.location.href = query.startsWith('http') ? query : `https://${query}`;
+            } else {
+                window.location.href = `https://google.com/search?q=${encodeURIComponent(query)}`;
+            }
+        }
+
+        function isValidURL(string) {
+            try {
+                new URL(string.startsWith('http') ? string : `https://${string}`);
+                return string.includes('.') && !string.includes(' ');
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function toggleControls() {
+            const controls = document.getElementById('controls');
+            controls.classList.toggle('hidden');
+        }
+
+        function toggleFloatingElements(save = true) {
+            const checkbox = document.getElementById('floatingElementsToggle');
+            const floatingElements = document.querySelector('.floating-elements');
+            
+            if (checkbox.checked) {
+                floatingElements.style.display = 'block';
+                if (floatingIntervalId === null) {
+                    floatingIntervalId = setInterval(createFloatingElement, 3000);
+                }
+            } else {
+                floatingElements.style.display = 'none';
+                if (floatingIntervalId !== null) {
+                    clearInterval(floatingIntervalId);
+                    floatingIntervalId = null;
+                }
+                floatingElements.innerHTML = '';
+            }
+            
+            if (save) {
+                saveSetting('floatingElements', checkbox.checked ? 'true' : 'false');
+            }
+        }
+
+        function createFloatingElement() {
+            const circle = document.createElement('div');
+            circle.className = 'floating-circle';
+            circle.style.width = Math.random() * 60 + 20 + 'px';
+            circle.style.height = circle.style.width;
+            circle.style.left = Math.random() * 100 + '%';
+            circle.style.animationDelay = '0s';
+            circle.style.animationDuration = (Math.random() * 10 + 15) + 's';
+            
+            document.querySelector('.floating-elements').appendChild(circle);
+            
+            setTimeout(() => {
+                circle.remove();
+            }, 25000);
+        }
+
+        let floatingIntervalId = null;
+        
+        function loadSavedSettings() {
+            const savedBackground = localStorage.getItem('arcSearch_background');
+            if (savedBackground) {
+                document.getElementById('backgroundSelect').value = savedBackground;
+                changeBackground(false);
+            }
+            
+            const savedOpacity = localStorage.getItem('arcSearch_opacity');
+            if (savedOpacity) {
+                document.getElementById('opacitySlider').value = savedOpacity;
+                updateOpacity(false);
+            }
+
+            const savedColor = localStorage.getItem('arcSearch_color');
+            if (savedColor) {
+                document.getElementById('colorPicker').value = savedColor;
+                updateColor(false);
+            } else {
+                document.getElementById('colorPicker').value = "#1e1e1e";
+                updateColor(false);
+            }
+
+            const savedAccent = localStorage.getItem('arcSearch_accent');
+            if (savedAccent) {
+                document.getElementById('accentPicker').value = savedAccent;
+                updateAccent(false);
+            } else {
+                document.getElementById('accentPicker').value = "#4d7eff";
+                updateAccent(false);
+            }
+            
+            const savedFloating = localStorage.getItem('newTabSearch_floatingElements');
+            const floatingToggle = document.getElementById('floatingElementsToggle');
+            
+            if (savedFloating === 'false') {
+                floatingToggle.checked = false;
+                toggleFloatingElements(false);
+            } else {
+                floatingToggle.checked = true;
+                floatingIntervalId = setInterval(createFloatingElement, 3000);
+            }
+        }
+
+        function saveSetting(key, value) {
+            localStorage.setItem('newTabSearch_' + key, value);
+        }
+
+        function changeBackground(save = true) {
+            const select = document.getElementById('backgroundSelect');
+            const body = document.body;
+            
+            // Want more bacground colors? Add them to the backgrounds list below!
+            const backgrounds = {
+                gradient1: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                gradient2: 'linear-gradient(135deg, #2196F3 0%, #21CBF3 100%)',
+                gradient3: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                gradient4: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                solid: '#2c3e50',
+            };
+            
+            body.style.background = backgrounds[select.value];
+            
+            if (save) {
+                saveSetting('background', select.value);
+            }
+        }
+
+        function updateOpacity(save = true) {
+            const slider = document.getElementById('opacitySlider');
+            document.documentElement.style.setProperty('--search-bg', `rgba(255, 255, 255, ${slider.value})`);
+            
+            if (save) {
+                saveSetting('opacity', slider.value);
+            }
+        }
+
+        function updateColor(save = true) {
+            const picker = document.getElementById('colorPicker');
+            const rgb = hexToRgb(picker.value);
+            const opacity = document.getElementById('opacitySlider').value;
+            document.documentElement.style.setProperty('--search-bg', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity})`);
+            document.documentElement.style.setProperty('--search-inner-bg', picker.value);
+            
+            if (save) {
+                saveSetting('color', picker.value);
+            }
+        }
+
+        function updateAccent(save = true) {
+            const picker = document.getElementById('accentPicker');
+            document.documentElement.style.setProperty('--accent-color', picker.value);
+            const rgb = hexToRgb(picker.value);
+            document.documentElement.style.setProperty('--suggestion-hover', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`);
+            document.documentElement.style.setProperty('--suggestion-selected', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`);
+            
+            if (save) {
+                saveSetting('accent', picker.value);
+            }
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        loadSavedSettings();
+    </script>
+</body>
+</html>
